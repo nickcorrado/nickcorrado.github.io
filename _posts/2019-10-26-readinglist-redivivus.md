@@ -1,0 +1,46 @@
+---
+layout: post
+title: "ReadingList Redivivus"
+date: 2019-10-26
+---
+
+In the spring of 2017, my senior year of college, I started a project for a seminar on software development practices. The plan was to write a reasonably complex application in ASP.NET MVC. I [chose to model my reading list](https://github.com/nickcorrado/ReadingList) (at the time, a Google Doc) with individual user accounts and the ability to add books and authors, mark off what you've read, and see what other people are reading. Think goodreads, but slimmed down.
+
+It didn't go as planned. Several things went wrong:
+1. I aimed for medium complexity--and I overshot
+2. I didn't understand layered architecture, and struggled with architecting anything because of it
+3. I had Microsoft Docs, stackoverflow, and a few web tutorials, but no one I could ask questions.
+
+The first had me simplifying the model partway through the project. I had thrown in a couple of many-to-many relations, like between the Books and Authors tables, so I took that out: each Book would now have exactly one Author. That helped a little.
+
+The second really bit me. The problem with a lot of "MVC for n00bs" tutorials is that even really crucial details get left out. Microsoft Docs' [Getting Started with MVC](https://docs.microsoft.com/en-us/aspnet/mvc/overview/getting-started/introduction/) has beginners working in a single "layer," with persistence, data, business logic, and presentation all jumbled together. The individual user accounts template built into Visual Studio project creation even couples the otherwise great ASP.NET Identity tightly to Entity Framework.
+
+But it was with the third that I really doomed myself. Even where I was cognizant that something was wrong or missing from a tutorial, I had no one I could verify it with. For example, Microsoft Docs recommends that, with a Code First approach, one use Data Annotations to mark things like required fields, `nvarchar` field lengths, error messages, and a host of others. What it neglects to mention is that Data Annotations mix two distinct concerns--database concerns like required fields and field lengths--with presentation concerns like the wording of the error message. Sometimes the _very same_ annotations are used for both, like `[StringLength]`. This is a disaster for [separation of concerns](https://en.wikipedia.org/wiki/Separation_of_concerns)!
+
+But it gets worse: Data Annotations couldn't do everything you need, either. Until Entity Framework Core in 2018, you could not add or validate a `UNIQUE` constraint on a field (and this is still only possible with a model configuration, not even annotations). Suppose you add the constraint to the database yourself as I did: then you still have no way of validating it according to the tools with Microsoft Docs has given you. It was just this that left me jaded about Data Annotations--and no recourse for validation, either. Had I asked someone sooner, I might have learned about model configuration, or separating presentation from data, or ways to enforce uniqueness constraints on object creation.
+
+I feel I'm getting ahead of myself, so let's take a few steps back. First, I'm going to discuss why I chose MVC for the project in the first place. Second, I want to discuss what I felt I was missing. Third, I'll say a little about what I'm doing differently now.
+
+---
+
+I chose ASP.NET MVC first because it was my senior year and I needed a job. My college's web development classes taught WebForms in VB.NET, memories of which still fill me with dread. They were good classes, but those skills are not as helpful today, when most new software, and a lot of legacy software, is MVC. ASP.NET was my platform because I had some familiarity already, and few places in Cleveland are hiring Ruby on Rails or Django developers.
+
+But second, I _wanted to write good code_. It pains me to slap together a big ball of mud; I want patterns-based, extensible, maintainable software. I want something to be proud of, something I can show other people to say, Look, I can make good things. Design patterns are a big deal in the .NET world (maybe too big a deal!). Everyone was making a fuss about Model-View-Controller because good separation of concerns, and I wanted in on that.
+
+This puts into better perspective why Microsoft's tutorial is so lacking. If you want a web-based introduction, look elsewhere. If you want code that abides by [SOLID principles](https://en.wikipedia.org/wiki/SOLID), look elsewhere. But where?
+
+Microsoft MVP Jeffrey Fritz has a Twitch stream with much, much better content, and all the old streams are [available on Youtube](https://www.youtube.com/user/jfritz828). Sessions are generally pair programmed with other MVPs, and the technology is mostly ASP.NET Core. I particularly recommend his [ASP.NET Core workshop](https://www.youtube.com/watch?v=--lYHxrsLsc) and his [building a wiki series](https://www.youtube.com/playlist?list=PLVMqA0_8O85yC78I4Xj7z48ES48IQBa7p).
+
+Something a lot harder to find, astoundingly, are good sample repos. Tutorials usually share their code--but again, theirs are so slimmed down that they raise questions of their own. I found myself wondering, for example, when I read one tutorial for the repository pattern whether the methods defined in our `IRepository` interface are the _only_ ones appropriate to a generic repository or whether the author is cutting corners. Another place where having someone to ask might help, but if I had a "real" sample to look at, I could answer it for myself.
+
+The closest to a "real" application I've found is MVP Steve Smith's [eShopOnWeb repository](https://github.com/dotnet-architecture/eShopOnWeb). He also has a bare bones (and slightly different) [Clean Architecture repo](https://github.com/ardalis/CleanArchitecture), which is for once not cutting corners.
+
+You might notice that all this material is written for .NET Core, and all of it produced in 2017 or later. That's correct. None of this content existed when we were on the .NET Framework (as I still am!). I _still_ can't find similar content aimed at pre-.NET Core noobs like me, but these make good second-bests.
+
+You might also notice a preponderance of Domain Driven Design (DDD) architecture. Traditional layered architecture--data access layer, business logic layer, and presentation layer--is not present. DDD is big in Fritz's sphere, through folks like Julie Lerman, and Smith's two repos above are DDD, with MVC as the presentation layer. That segues nicely into what I'm doing differently now.
+
+I tried a few more times since 2017 to resurrect ReadingList. In each case I ran into problems I didn't know how to solve, like my validation puzzle above. Last week began my latest attempt: how do I configure Identity to use integer user ids? (I'm not a big fan of guids.) Identity 2.0 is designed to be very configurable (good on them), but again, Visual Studio's Individual User Accounts template has it tightly coupled to Entity Framework, and assumptions like id type are hidden in a package. Microsoft Docs [has a great walkthrough](https://docs.microsoft.com/en-us/aspnet/identity/overview/extensibility/change-primary-key-for-users-in-aspnet-identity), but after adding all the custom implementation classes, it had me wondering how I would decouple everything and move to a layered architecture. That brought me to [Tim Schreiber's long, excellent tutorial](https://timschreiber.com/2015/01/14/persistence-ignorant-asp-net-identity-with-patterns-part-1/), which lays out in much greater detail what's wrong with the VS's default project and then painstakingly fixes it. His architecture is domain driven.
+
+I decided to lean into it, whence the [three dozen commits](https://github.com/nickcorrado/ReadingList/graphs/commit-activity) to ReadingList starting the week of October 13th. I went a little further than Schreiber, moving most of the Identity configuration into my Core project as well; as I see it, almost all of it should be shared with any other presentation layer, so it doesn't belong there. Since then, most of my work has been moving the rest of my model--Books, Authors, Tags, and all--into Core and [modeling them properly](https://github.com/nickcorrado/ReadingList/blob/6b1a7b68dff73910a53fdda06b7e3581f1efdbb6/ReadingList/Core/Entities/UserBook.cs). Along the way I [learned to love](https://github.com/nickcorrado/ReadingList/blob/6b1a7b68dff73910a53fdda06b7e3581f1efdbb6/ReadingList/Data/Configurations/UserBookConfiguration.cs) Entity Framework's entity type configurations, which are vastly superior to Data Annotations.
+
+There's a lot still to do, with a lot of puzzles to be solved. Most important, of course, is that my presentation layer doesn't even compile, because my old controllers were wired up directly to my dbContext and querying with LINQ. Yikes! My repositories aren't fleshed out enough to replace those references yet, and I have no mapping between my domain model and viewmodels, either. More _pressing_ is to finish modeling my domain, which I'll write about soon.
